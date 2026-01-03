@@ -43,7 +43,7 @@
   ],
   
   "host_permissions": [
-    "*://*.linkedin.com/*",
+    "*://*.linkedin.com/jobs/*",
     "*://boards.greenhouse.io/*",
     "*://jobs.lever.co/*"
   ]

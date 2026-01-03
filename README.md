@@ -215,10 +215,10 @@ This extension uses Manifest V3, the latest Chrome extension platform:
 - No tracking or analytics
 
 ### API Usage
-- Uses Claude 3.5 Sonnet model
-- Typically 1,000-3,000 tokens per analysis
-- Costs approximately $0.01-0.03 per job analysis
-- API key required (get one at console.anthropic.com)
+- Uses Claude 3.5 Sonnet model (claude-3-5-sonnet-20241022)
+- Typically 1,000-3,000 tokens per analysis (depends on job description length)
+- Cost varies based on token usage - see [Anthropic's pricing page](https://www.anthropic.com/pricing) for current rates
+- API key required (get one at [console.anthropic.com](https://console.anthropic.com/))
 
 ## Troubleshooting
 
@@ -243,6 +243,33 @@ This extension uses Manifest V3, the latest Chrome extension platform:
 - Check browser storage isn't full
 - Try clearing some old jobs
 - Check the browser console for errors
+
+### Data extraction fails or returns empty fields
+- Job sites frequently update their HTML structure and CSS classes
+- DOM selectors in `lib/extractor.js` may need updates when platforms change their UI
+- LinkedIn is especially known for frequent class name changes
+- Check the browser console for extraction errors
+- If extraction consistently fails, the selectors may need to be updated to match the new page structure
+- See the "Maintenance Notes" section below for more information
+
+## Maintenance Notes
+
+### DOM Selector Updates
+
+The extension relies on DOM selectors to extract job information from web pages. These selectors can break when job platforms update their user interfaces:
+
+- **LinkedIn** frequently changes CSS class names (often monthly)
+- **Greenhouse** and **Lever** are more stable but still update occasionally
+- When extraction fails, you may need to update selectors in `lib/extractor.js`
+
+**To update selectors:**
+1. Open the job page in your browser
+2. Use browser DevTools (F12) to inspect the HTML structure
+3. Find the elements containing job title, company, description, etc.
+4. Update the querySelector calls in `lib/extractor.js` with new class names
+5. Test the extraction on multiple job postings to ensure it works
+
+**Tip:** Prefer `data-*` attributes or ID selectors when available, as these are more stable than class names.
 
 ## Future Enhancements
 

@@ -174,7 +174,7 @@
       console.log(`Job Hunt Assistant: Detected ${platform} job page`);
       
       // Create the analyze button after a short delay to ensure DOM is ready
-      setTimeout(createAnalyzeButton, 1000);
+      setTimeout(createAnalyzeButton, 100);
     } else {
       console.log('Job Hunt Assistant: Not on a supported job platform');
     }

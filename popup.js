@@ -95,6 +95,16 @@ function displayJobs(jobs) {
     const platform = job.platform || 'Unknown';
     const date = formatDate(job.analyzedAt || job.extractedAt);
     const hasAnalysis = job.analysis;
+    const hasError = job.analysisError;
+
+    let statusHtml;
+    if (hasAnalysis) {
+      statusHtml = '<button class="btn btn-primary view-analysis">View Analysis</button>';
+    } else if (hasError) {
+      statusHtml = '<span style="font-size: 12px; color: #ff4d4f;" title="' + (job.analysisError || '') + '">Analysis failed</span>';
+    } else {
+      statusHtml = '<span style="font-size: 12px; color: #888;">No analysis available</span>';
+    }
 
     return `
       <div class="job-card" data-job-id="${job.id}">
@@ -102,7 +112,7 @@ function displayJobs(jobs) {
         <div class="company">${company}</div>
         <div class="meta">${platform} • ${date}</div>
         <div class="actions">
-          ${hasAnalysis ? '<button class="btn btn-primary view-analysis">View Analysis</button>' : '<span style="font-size: 12px; color: #888;">No analysis available</span>'}
+          ${statusHtml}
           <button class="btn btn-secondary open-job">Open Job</button>
           <button class="btn btn-danger delete-job">Delete</button>
         </div>
@@ -294,7 +304,13 @@ async function clearAllJobs() {
  * Show status message
  */
 function showStatus(element, message, type) {
-  element.innerHTML = '<div class="status-message status-' + type + '">' + message + '</div>';
+  // Create status message element safely to prevent XSS
+  const statusDiv = document.createElement('div');
+  statusDiv.className = 'status-message status-' + type;
+  statusDiv.textContent = message; // Use textContent to prevent XSS
+
+  element.innerHTML = '';
+  element.appendChild(statusDiv);
 
   setTimeout(() => {
     element.innerHTML = '';
