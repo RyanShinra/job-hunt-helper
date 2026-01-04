@@ -5,6 +5,7 @@
 
 // Constants
 const STATUS_MESSAGE_DURATION = 5000; // ms - how long status messages stay visible
+const MAX_MODAL_CONTENT_LENGTH = 10000; // characters - max length before truncation
 
 /**
  * Escapes HTML special characters to prevent XSS
@@ -71,7 +72,8 @@ function setupEventListeners() {
     if (!jobCard) return;
 
     const jobId = jobCard.dataset.jobId;
-    const job = currentJobs.find(j => escapeHtml(j.id) === jobId);
+    // Job IDs are internal identifiers - direct comparison is safe
+    const job = currentJobs.find(j => j.id === jobId);
 
     if (!job) return;
 
@@ -153,7 +155,8 @@ function displayJobs(jobs) {
     const company = escapeHtml(job.company || 'Unknown Company');
     const platform = escapeHtml(job.platform || 'Unknown');
     const date = escapeHtml(formatDate(job.analyzedAt || job.extractedAt));
-    const jobId = escapeHtml(job.id);
+    // Job IDs are internal identifiers, not user data - no escaping needed
+    const jobId = job.id;
     const hasAnalysis = job.analysis;
     const hasError = job.analysisError;
 
@@ -161,9 +164,9 @@ function displayJobs(jobs) {
     if (hasAnalysis) {
       statusHtml = '<button class="btn btn-primary view-analysis">View Analysis</button>';
     } else if (hasError) {
-      // Escape error message for XSS protection
+      // Escape error message for XSS protection and use consistent template literals
       const errorMsg = escapeHtml(job.analysisError || '');
-      statusHtml = '<span style="font-size: 12px; color: #ff4d4f;" title="' + errorMsg + '">Analysis failed</span>';
+      statusHtml = `<span style="font-size: 12px; color: #ff4d4f;" title="${errorMsg}">Analysis failed</span>`;
     } else {
       statusHtml = '<span style="font-size: 12px; color: #888;">No analysis available</span>';
     }
@@ -213,7 +216,49 @@ function showAnalysis(job) {
   const body = document.getElementById('modal-body');
 
   title.textContent = job.jobTitle || 'Job Analysis';
-  body.textContent = job.analysis || 'No analysis available';
+
+  const analysisText = job.analysis || 'No analysis available';
+
+  // Truncate very long content to prevent UI performance issues
+  if (analysisText.length > MAX_MODAL_CONTENT_LENGTH) {
+    const truncated = analysisText.substring(0, MAX_MODAL_CONTENT_LENGTH);
+    const remaining = analysisText.substring(MAX_MODAL_CONTENT_LENGTH);
+
+    // Clear body and create truncated view with "show more" button
+    body.innerHTML = '';
+
+    const truncatedPara = document.createElement('p');
+    truncatedPara.textContent = truncated + '...';
+    truncatedPara.style.whiteSpace = 'pre-wrap';
+
+    const showMoreBtn = document.createElement('button');
+    showMoreBtn.textContent = 'Show More';
+    showMoreBtn.className = 'btn btn-secondary';
+    showMoreBtn.style.marginTop = '10px';
+
+    const hiddenContent = document.createElement('p');
+    hiddenContent.textContent = remaining;
+    hiddenContent.style.whiteSpace = 'pre-wrap';
+    hiddenContent.style.display = 'none';
+
+    showMoreBtn.addEventListener('click', () => {
+      if (hiddenContent.style.display === 'none') {
+        hiddenContent.style.display = 'block';
+        truncatedPara.textContent = truncated;
+        showMoreBtn.textContent = 'Show Less';
+      } else {
+        hiddenContent.style.display = 'none';
+        truncatedPara.textContent = truncated + '...';
+        showMoreBtn.textContent = 'Show More';
+      }
+    });
+
+    body.appendChild(truncatedPara);
+    body.appendChild(hiddenContent);
+    body.appendChild(showMoreBtn);
+  } else {
+    body.textContent = analysisText;
+  }
 
   modal.classList.add('active');
 }

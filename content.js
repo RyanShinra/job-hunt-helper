@@ -13,11 +13,36 @@
   const NOTIFICATION_SHOW_DELAY = 10; // ms - delay before showing notification
   const NOTIFICATION_HIDE_DELAY = 4000; // ms - how long notification stays visible
   const NOTIFICATION_FADE_DELAY = 300; // ms - fade out animation duration
+  const MESSAGE_TIMEOUT = 30000; // ms - max wait time for background script response
 
   console.log('Job Hunt Assistant: Content script loaded');
 
   let analyzeButton = null;
   let isProcessing = false;
+
+  /**
+   * Sends message to background script with timeout protection
+   * @param {Object} message - Message to send
+   * @param {number} timeout - Timeout in milliseconds
+   * @returns {Promise<Object>} Response from background script
+   */
+  function sendMessageWithTimeout(message, timeout = MESSAGE_TIMEOUT) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Background script communication timeout'));
+      }, timeout);
+
+      chrome.runtime.sendMessage(message, (response) => {
+        clearTimeout(timeoutId);
+
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+  }
   
   /**
    * Creates and injects the "Analyze with Claude" button
@@ -74,19 +99,14 @@
       }
       
       console.log('Job Hunt Assistant: Extracted job data:', jobData);
-      
-      // Send data to background script for processing
-      chrome.runtime.sendMessage({
-        action: 'analyzeJob',
-        data: jobData
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Job Hunt Assistant: Error sending message:', chrome.runtime.lastError);
-          showNotification('Error communicating with extension', 'error');
-          updateButtonState('error');
-          return;
-        }
-        
+
+      // Send data to background script for processing with timeout protection
+      try {
+        const response = await sendMessageWithTimeout({
+          action: 'analyzeJob',
+          data: jobData
+        });
+
         if (response && response.success) {
           console.log('Job Hunt Assistant: Analysis complete');
           showNotification('Job analyzed successfully! Check the extension popup.', 'success');
@@ -96,7 +116,11 @@
           showNotification(response?.error || 'Analysis failed', 'error');
           updateButtonState('error');
         }
-      });
+      } catch (commError) {
+        console.error('Job Hunt Assistant: Communication error:', commError);
+        showNotification('Error communicating with extension. Please try again.', 'error');
+        updateButtonState('error');
+      }
       
     } catch (error) {
       console.error('Job Hunt Assistant: Error during analysis:', error);
