@@ -6,9 +6,16 @@
 // Check if we're on a job posting page
 (function() {
   'use strict';
-  
+
+  // Constants
+  const BUTTON_CREATE_DELAY = 100; // ms - delay before creating analyze button
+  const BUTTON_RESET_DELAY = 3000; // ms - delay before resetting button state
+  const NOTIFICATION_SHOW_DELAY = 10; // ms - delay before showing notification
+  const NOTIFICATION_HIDE_DELAY = 4000; // ms - how long notification stays visible
+  const NOTIFICATION_FADE_DELAY = 300; // ms - fade out animation duration
+
   console.log('Job Hunt Assistant: Content script loaded');
-  
+
   let analyzeButton = null;
   let isProcessing = false;
   
@@ -96,11 +103,11 @@
       showNotification('An error occurred during analysis', 'error');
       updateButtonState('error');
     } finally {
-      // Reset button state after 3 seconds
+      // Reset button state after delay
       setTimeout(() => {
         isProcessing = false;
         updateButtonState('default');
-      }, 3000);
+      }, BUTTON_RESET_DELAY);
     }
   }
   
@@ -146,15 +153,15 @@
     notification.textContent = message;
     
     document.body.appendChild(notification);
-    
+
     // Trigger animation
-    setTimeout(() => notification.classList.add('jh-notification-show'), 10);
-    
-    // Remove after 4 seconds
+    setTimeout(() => notification.classList.add('jh-notification-show'), NOTIFICATION_SHOW_DELAY);
+
+    // Remove after delay
     setTimeout(() => {
       notification.classList.remove('jh-notification-show');
-      setTimeout(() => notification.remove(), 300);
-    }, 4000);
+      setTimeout(() => notification.remove(), NOTIFICATION_FADE_DELAY);
+    }, NOTIFICATION_HIDE_DELAY);
   }
   
   /**
@@ -172,9 +179,9 @@
     
     if (platform) {
       console.log(`Job Hunt Assistant: Detected ${platform} job page`);
-      
+
       // Create the analyze button after a short delay to ensure DOM is ready
-      setTimeout(createAnalyzeButton, 100);
+      setTimeout(createAnalyzeButton, BUTTON_CREATE_DELAY);
     } else {
       console.log('Job Hunt Assistant: Not on a supported job platform');
     }

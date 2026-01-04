@@ -3,6 +3,35 @@
  * Handles the extension popup UI and interactions
  */
 
+// Constants
+const STATUS_MESSAGE_DURATION = 5000; // ms - how long status messages stay visible
+
+/**
+ * Escapes HTML special characters to prevent XSS
+ * @param {string} unsafe - Unsafe string that may contain HTML
+ * @returns {string} - HTML-safe string
+ */
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
+ * Validates URL to prevent javascript: and data: URLs
+ * @param {string} url - URL to validate
+ * @returns {boolean} - Whether URL is safe
+ */
+function isSafeUrl(url) {
+  if (!url) return false;
+  const lower = url.toLowerCase().trim();
+  return lower.startsWith('http://') || lower.startsWith('https://');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Popup loaded');
 
@@ -32,6 +61,29 @@ function setupEventListeners() {
 
   // Clear all jobs
   document.getElementById('clear-jobs').addEventListener('click', clearAllJobs);
+
+  // Event delegation for job card buttons (prevents memory leaks)
+  document.getElementById('jobs-list').addEventListener('click', (e) => {
+    const target = e.target;
+
+    // Find the job card parent
+    const jobCard = target.closest('.job-card');
+    if (!jobCard) return;
+
+    const jobId = jobCard.dataset.jobId;
+    const job = currentJobs.find(j => escapeHtml(j.id) === jobId);
+
+    if (!job) return;
+
+    // Handle different button clicks
+    if (target.classList.contains('view-analysis')) {
+      showAnalysis(job);
+    } else if (target.classList.contains('open-job')) {
+      openJob(job);
+    } else if (target.classList.contains('delete-job')) {
+      deleteJob(job.id);
+    }
+  });
 
   // Close modal
   document.querySelector('.close-btn').addEventListener('click', closeModal);
@@ -83,17 +135,25 @@ async function loadJobs() {
   }
 }
 
+// Store jobs globally for event delegation
+let currentJobs = [];
+
 /**
  * Display jobs in the list
  */
 function displayJobs(jobs) {
   const jobsList = document.getElementById('jobs-list');
 
+  // Store jobs for event delegation
+  currentJobs = jobs;
+
   const jobsHtml = jobs.map(job => {
-    const title = job.jobTitle || 'Untitled Job';
-    const company = job.company || 'Unknown Company';
-    const platform = job.platform || 'Unknown';
-    const date = formatDate(job.analyzedAt || job.extractedAt);
+    // Escape all user-controlled data to prevent XSS
+    const title = escapeHtml(job.jobTitle || 'Untitled Job');
+    const company = escapeHtml(job.company || 'Unknown Company');
+    const platform = escapeHtml(job.platform || 'Unknown');
+    const date = escapeHtml(formatDate(job.analyzedAt || job.extractedAt));
+    const jobId = escapeHtml(job.id);
     const hasAnalysis = job.analysis;
     const hasError = job.analysisError;
 
@@ -101,13 +161,15 @@ function displayJobs(jobs) {
     if (hasAnalysis) {
       statusHtml = '<button class="btn btn-primary view-analysis">View Analysis</button>';
     } else if (hasError) {
-      statusHtml = '<span style="font-size: 12px; color: #ff4d4f;" title="' + (job.analysisError || '') + '">Analysis failed</span>';
+      // Escape error message for XSS protection
+      const errorMsg = escapeHtml(job.analysisError || '');
+      statusHtml = '<span style="font-size: 12px; color: #ff4d4f;" title="' + errorMsg + '">Analysis failed</span>';
     } else {
       statusHtml = '<span style="font-size: 12px; color: #888;">No analysis available</span>';
     }
 
     return `
-      <div class="job-card" data-job-id="${job.id}">
+      <div class="job-card" data-job-id="${jobId}">
         <h4>${title}</h4>
         <div class="company">${company}</div>
         <div class="meta">${platform} • ${date}</div>
@@ -122,19 +184,8 @@ function displayJobs(jobs) {
 
   jobsList.innerHTML = jobsHtml;
 
-  // Add event listeners to job cards
-  document.querySelectorAll('.job-card').forEach(card => {
-    const jobId = card.dataset.jobId;
-    const job = jobs.find(j => j.id === jobId);
-
-    const viewBtn = card.querySelector('.view-analysis');
-    if (viewBtn) {
-      viewBtn.addEventListener('click', () => showAnalysis(job));
-    }
-
-    card.querySelector('.open-job').addEventListener('click', () => openJob(job));
-    card.querySelector('.delete-job').addEventListener('click', () => deleteJob(jobId));
-  });
+  // Event delegation is set up once in setupEventListeners()
+  // No need to add listeners here - prevents memory leaks
 }
 
 /**
@@ -178,8 +229,12 @@ function closeModal() {
  * Open job in new tab
  */
 function openJob(job) {
-  if (job.url) {
+  // Validate URL to prevent XSS via javascript: or data: URLs
+  if (job.url && isSafeUrl(job.url)) {
     chrome.tabs.create({ url: job.url });
+  } else if (job.url) {
+    console.error('Blocked unsafe URL:', job.url);
+    alert('Cannot open job: invalid or unsafe URL');
   }
 }
 
@@ -304,6 +359,13 @@ async function clearAllJobs() {
  * Show status message
  */
 function showStatus(element, message, type) {
+  // Validate type parameter to prevent CSS class injection
+  const validTypes = ['success', 'error', 'info'];
+  if (!validTypes.includes(type)) {
+    console.error('Invalid status type:', type);
+    type = 'info'; // Fallback to safe default
+  }
+
   // Create status message element safely to prevent XSS
   const statusDiv = document.createElement('div');
   statusDiv.className = 'status-message status-' + type;
@@ -314,7 +376,7 @@ function showStatus(element, message, type) {
 
   setTimeout(() => {
     element.innerHTML = '';
-  }, 5000);
+  }, STATUS_MESSAGE_DURATION);
 }
 
 /**
@@ -324,8 +386,20 @@ function formatDate(dateString) {
   if (!dateString) return 'Unknown date';
 
   const date = new Date(dateString);
+
+  // Validate date
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
+
   const now = new Date();
   const diffMs = now - date;
+
+  // Handle future dates
+  if (diffMs < 0) {
+    return date.toLocaleDateString();
+  }
+
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
