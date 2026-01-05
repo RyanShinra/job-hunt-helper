@@ -137,3 +137,42 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# API Keys and Secrets
+config/secrets.json
+**/api-keys.json
+
+# Browser Extension specific
+*.zip
+*.crx
+*.pem
+web-ext-artifacts/
+
+# Build artifacts
+build/
+dist/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
