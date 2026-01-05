@@ -113,7 +113,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'testApiKey':
       ClaudeClient.testApiKey(request.apiKey)
-        .then(isValid => sendResponse({ success: true, isValid }))
+        .then(result => sendResponse({ success: true, isValid: result.isValid, details: result.details }))
         .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
       return true;
 
