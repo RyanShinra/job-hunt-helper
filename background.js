@@ -70,7 +70,15 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Listen for messages from content script and popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request.action);
-  
+
+  // Security: Validate message sender to prevent external attacks
+  // Messages should only come from our own extension
+  if (sender.id !== chrome.runtime.id) {
+    console.error('Rejected message from unauthorized sender:', sender.id);
+    sendResponse({ success: false, error: 'Unauthorized sender' });
+    return false;
+  }
+
   // Handle different message types
   switch (request.action) {
     case 'analyzeJob':

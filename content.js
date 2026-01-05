@@ -14,11 +14,14 @@
   const NOTIFICATION_HIDE_DELAY = 4000; // ms - how long notification stays visible
   const NOTIFICATION_FADE_DELAY = 300; // ms - fade out animation duration
   const MESSAGE_TIMEOUT = 30000; // ms - max wait time for background script response
+  const RATE_LIMIT_COOLDOWN = 2000; // ms - minimum time between analyze requests
 
   console.log('Job Hunt Assistant: Content script loaded');
 
   let analyzeButton = null;
   let isProcessing = false;
+  let lastAnalyzeTime = 0;
+  let isInitialized = false; // Prevent init race condition
 
   /**
    * Sends message to background script with timeout protection
@@ -83,7 +86,17 @@
       console.log('Job Hunt Assistant: Already processing...');
       return;
     }
-    
+
+    // Rate limiting: prevent spamming API requests
+    const now = Date.now();
+    const timeSinceLastAnalyze = now - lastAnalyzeTime;
+    if (timeSinceLastAnalyze < RATE_LIMIT_COOLDOWN) {
+      const remainingTime = Math.ceil((RATE_LIMIT_COOLDOWN - timeSinceLastAnalyze) / 1000);
+      showNotification(`Please wait ${remainingTime} second${remainingTime > 1 ? 's' : ''} before analyzing again`, 'error');
+      return;
+    }
+
+    lastAnalyzeTime = now;
     isProcessing = true;
     updateButtonState('processing');
     
@@ -192,15 +205,23 @@
    * Initialize the content script
    */
   function init() {
+    // Prevent multiple initializations (race condition protection)
+    if (isInitialized) {
+      console.log('Job Hunt Assistant: Already initialized, skipping');
+      return;
+    }
+
     // Wait for page to be fully loaded
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init);
       return;
     }
-    
+
+    isInitialized = true;
+
     // Check if we're on a supported platform
     const platform = window.JobExtractor?.detectPlatform();
-    
+
     if (platform) {
       console.log(`Job Hunt Assistant: Detected ${platform} job page`);
 
