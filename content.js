@@ -103,15 +103,30 @@
     try {
       // Extract job data using the JobExtractor
       const jobData = window.JobExtractor?.extract();
-      
+
+      console.log('Job Hunt Assistant: Extracted job data:', {
+        hasData: !!jobData,
+        jobTitle: jobData?.jobTitle,
+        company: jobData?.company,
+        platform: jobData?.platform,
+        hasDescription: !!jobData?.description,
+        descriptionLength: jobData?.description?.length,
+        url: jobData?.url
+      });
+
       if (!jobData) {
         console.error('Job Hunt Assistant: Failed to extract job data');
         showNotification('Could not extract job data. Make sure you\'re on a job posting page.', 'error');
         updateButtonState('error');
         return;
       }
-      
-      console.log('Job Hunt Assistant: Extracted job data:', jobData);
+
+      if (!jobData.description || jobData.description.trim().length === 0) {
+        console.error('Job Hunt Assistant: Job description is empty');
+        showNotification('Could not extract job description. The page may not have loaded completely.', 'error');
+        updateButtonState('error');
+        return;
+      }
 
       // Send data to background script for processing with timeout protection
       try {
