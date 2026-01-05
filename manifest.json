@@ -45,6 +45,7 @@
   "host_permissions": [
     "*://*.linkedin.com/jobs/*",
     "*://boards.greenhouse.io/*",
-    "*://jobs.lever.co/*"
+    "*://jobs.lever.co/*",
+    "https://api.anthropic.com/*"
   ]
 }
