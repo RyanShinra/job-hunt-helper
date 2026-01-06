@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize
   await loadJobs();
   await loadApiKey();
+  await loadResumeStatus();
   setupEventListeners();
 });
 
@@ -62,6 +63,12 @@ function setupEventListeners() {
 
   // Clear all jobs
   document.getElementById('clear-jobs').addEventListener('click', clearAllJobs);
+
+  // Resume upload
+  document.getElementById('resume-upload').addEventListener('change', handleResumeUpload);
+
+  // Delete resume
+  document.getElementById('delete-resume').addEventListener('click', deleteResume);
 
   // Event delegation for job card buttons (prevents memory leaks)
   document.getElementById('jobs-list').addEventListener('click', (e) => {
@@ -457,4 +464,130 @@ function formatDate(dateString) {
   if (diffDays < 7) return diffDays + 'd ago';
 
   return date.toLocaleDateString();
+}
+
+/**
+ * Load resume status
+ */
+async function loadResumeStatus() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getResume' });
+    const statusDiv = document.getElementById('resume-status');
+    const deleteBtn = document.getElementById('delete-resume');
+
+    if (response.success && response.resume) {
+      const charCount = response.resume.length;
+      const wordCount = response.resume.split(/\s+/).length;
+      statusDiv.innerHTML = `
+        <span style="color: #4ade80; font-weight: 600;">✓ Resume uploaded</span>
+        <br>
+        <span style="font-size: 12px;">${wordCount} words, ${charCount} characters</span>
+      `;
+      deleteBtn.style.display = 'inline-block';
+    } else {
+      statusDiv.innerHTML = '<span style="color: #888;">No resume uploaded</span>';
+      deleteBtn.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Error loading resume status:', error);
+  }
+}
+
+/**
+ * Handle resume file upload
+ */
+async function handleResumeUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const statusDiv = document.getElementById('resume-status');
+
+  // Check file type
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    statusDiv.innerHTML = '<span style="color: #ff8800;">⚠ PDF files are not yet supported. Please convert to .txt first.</span>';
+    event.target.value = ''; // Clear the file input
+    return;
+  }
+
+  if (file.name.endsWith('.doc') || file.name.endsWith('.docx') || file.type.includes('word')) {
+    statusDiv.innerHTML = '<span style="color: #ff8800;">⚠ Word files are not yet supported. Please save as .txt first.</span>';
+    event.target.value = ''; // Clear the file input
+    return;
+  }
+
+  // Check file size (max 1MB)
+  if (file.size > 1024 * 1024) {
+    statusDiv.innerHTML = '<span style="color: #ff4d4f;">⚠ File too large. Maximum size is 1MB.</span>';
+    event.target.value = '';
+    return;
+  }
+
+  statusDiv.innerHTML = '<span style="color: #667eea;">Uploading...</span>';
+
+  try {
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+      const resumeText = e.target.result;
+
+      if (!resumeText || resumeText.trim().length === 0) {
+        statusDiv.innerHTML = '<span style="color: #ff4d4f;">⚠ File is empty.</span>';
+        event.target.value = '';
+        return;
+      }
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'saveResume',
+          resumeText: resumeText
+        });
+
+        if (response.success) {
+          await loadResumeStatus();
+          statusDiv.innerHTML = '<span style="color: #4ade80; font-weight: 600;">✓ Resume uploaded successfully!</span>';
+          setTimeout(() => loadResumeStatus(), 2000); // Refresh status after delay
+        } else {
+          statusDiv.innerHTML = '<span style="color: #ff4d4f;">Failed to upload resume.</span>';
+        }
+      } catch (error) {
+        console.error('Error saving resume:', error);
+        statusDiv.innerHTML = '<span style="color: #ff4d4f;">Error uploading resume.</span>';
+      }
+
+      event.target.value = ''; // Clear file input
+    };
+
+    reader.onerror = () => {
+      statusDiv.innerHTML = '<span style="color: #ff4d4f;">Error reading file.</span>';
+      event.target.value = '';
+    };
+
+    reader.readAsText(file);
+  } catch (error) {
+    console.error('Error uploading resume:', error);
+    statusDiv.innerHTML = '<span style="color: #ff4d4f;">Error uploading resume.</span>';
+    event.target.value = '';
+  }
+}
+
+/**
+ * Delete resume
+ */
+async function deleteResume() {
+  if (!confirm('Are you sure you want to delete your resume? Future analyses will not be personalized.')) {
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'deleteResume' });
+
+    if (response.success) {
+      await loadResumeStatus();
+    } else {
+      alert('Failed to delete resume');
+    }
+  } catch (error) {
+    console.error('Error deleting resume:', error);
+    alert('Error deleting resume');
+  }
 }

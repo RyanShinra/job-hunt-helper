@@ -128,7 +128,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .then(() => sendResponse({ success: true }))
         .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
       return true;
-      
+
+    case 'saveResume':
+      Storage.saveResume(request.resumeText)
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
+      return true;
+
+    case 'getResume':
+      Storage.getResume()
+        .then(resume => sendResponse({ success: true, resume }))
+        .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
+      return true;
+
+    case 'deleteResume':
+      Storage.deleteResume()
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
+      return true;
+
     default:
       sendResponse({ success: false, error: 'Unknown action' });
   }
@@ -156,40 +174,46 @@ async function handleAnalyzeJob(jobData) {
 
     // Get API key from storage
     const apiKey = await Storage.getApiKey();
-    
+
     if (!apiKey) {
       throw new Error('No API key configured. Please set your Claude API key in the extension popup.');
     }
-    
+
     // Validate API key format
     if (!ClaudeClient.validateApiKey(apiKey)) {
       throw new Error('Invalid API key format. Please check your Claude API key.');
     }
-    
-    // Call Claude API for analysis
+
+    // Get resume from storage (optional)
+    const resumeText = await Storage.getResume();
+    if (resumeText) {
+      console.log('Background: Using resume for personalized analysis');
+    }
+
+    // Call Claude API for analysis (with optional resume)
     console.log('Background: Calling Claude API...');
-    const analysisResult = await ClaudeClient.analyzeJob(apiKey, jobData);
-    
+    const analysisResult = await ClaudeClient.analyzeJob(apiKey, jobData, resumeText);
+
     // Save the analyzed job to storage
     const jobToSave = {
       ...jobData,
       analysis: analysisResult.analysis,
       analyzedAt: analysisResult.analyzedAt
     };
-    
+
     await Storage.saveJob(jobToSave);
-    
+
     console.log('Background: Job analysis complete and saved');
-    
+
     // Update badge to show new analysis
     updateBadge();
-    
+
     return {
       success: true,
       analysis: analysisResult.analysis,
       jobId: jobToSave.id
     };
-    
+
   } catch (error) {
     console.error('Background: Error analyzing job:', error);
 
