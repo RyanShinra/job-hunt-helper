@@ -113,7 +113,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'testApiKey':
       ClaudeClient.testApiKey(request.apiKey)
-        .then(isValid => sendResponse({ success: true, isValid }))
+        .then(result => sendResponse({ success: true, isValid: result.isValid, details: result.details }))
         .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
       return true;
 
@@ -144,7 +144,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function handleAnalyzeJob(jobData) {
   try {
     console.log('Background: Starting job analysis');
-    
+    console.log('Background: Received job data:', {
+      hasData: !!jobData,
+      hasDescription: !!jobData?.description,
+      descriptionLength: jobData?.description?.length,
+      jobTitle: jobData?.jobTitle,
+      company: jobData?.company,
+      platform: jobData?.platform,
+      url: jobData?.url
+    });
+
     // Get API key from storage
     const apiKey = await Storage.getApiKey();
     
