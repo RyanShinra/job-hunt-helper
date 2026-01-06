@@ -13,7 +13,7 @@
   const NOTIFICATION_SHOW_DELAY = 10; // ms - delay before showing notification
   const NOTIFICATION_HIDE_DELAY = 4000; // ms - how long notification stays visible
   const NOTIFICATION_FADE_DELAY = 300; // ms - fade out animation duration
-  const MESSAGE_TIMEOUT = 30000; // ms - max wait time for background script response
+  const MESSAGE_TIMEOUT = 90000; // ms - max wait time for background script response (API timeout is 60s)
   const RATE_LIMIT_COOLDOWN = 2000; // ms - minimum time between analyze requests
 
   console.log('Job Hunt Assistant: Content script loaded');
