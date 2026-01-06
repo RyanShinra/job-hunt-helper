@@ -254,7 +254,24 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'ping') {
       sendResponse({ status: 'ready' });
+      return true;
     }
+
+    if (request.action === 'autoAnalyze') {
+      console.log('Job Hunt Assistant: Auto-analyze triggered');
+
+      // Show subtle notification that analysis is starting
+      showNotification('🤖 Auto-analyzing this job...', 'info');
+
+      // Trigger analysis after a short delay
+      setTimeout(() => {
+        handleAnalyzeClick();
+      }, 500);
+
+      sendResponse({ status: 'started' });
+      return true;
+    }
+
     return true;
   });
   

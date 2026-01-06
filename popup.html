@@ -368,6 +368,22 @@
       </div>
       
       <div class="settings-section">
+        <h3>Auto-Analysis</h3>
+        <p style="font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 12px;">
+          Automatically analyze job postings when you open them in a new tab.
+        </p>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <label style="display: flex; align-items: center; cursor: pointer;">
+            <input type="checkbox" id="auto-analyze-toggle" style="width: 20px; height: 20px; cursor: pointer; margin-right: 8px;">
+            <span style="font-size: 14px; font-weight: 600;">Enable auto-analysis on tab open</span>
+          </label>
+        </div>
+        <p style="font-size: 12px; color: #888; line-height: 1.4;">
+          💡 <strong>Tip:</strong> Open multiple jobs in tabs, then switch between them to see completed analyses. Great for batch reviewing!
+        </p>
+      </div>
+
+      <div class="settings-section">
         <h3>Resume Upload</h3>
         <p style="font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 12px;">
           Upload your resume to get personalized job analysis and match scores.
@@ -377,6 +393,27 @@
           <div id="resume-status" style="font-size: 13px; color: #666; margin-bottom: 10px;"></div>
         </div>
         <button id="delete-resume" class="btn btn-danger" style="display: none;">Delete Resume</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>Career Preferences & Context</h3>
+        <p style="font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 12px;">
+          Help Claude understand your career goals and constraints for better match analysis.
+        </p>
+        <div class="input-group">
+          <label for="preferences">Your Preferences</label>
+          <textarea
+            id="preferences"
+            placeholder="Example: I'm looking for mid-level roles, not yet ready for staff positions. Prefer remote-first companies. Strong at Python but still learning Go. Open to relocation for the right opportunity."
+            style="width: 100%; min-height: 120px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; line-height: 1.5; resize: vertical;"
+            maxlength="1000"
+          ></textarea>
+          <div style="font-size: 12px; color: #888; margin-top: 5px; text-align: right;">
+            <span id="preferences-char-count">0</span>/1000 characters
+          </div>
+        </div>
+        <button id="save-preferences" class="btn btn-primary">Save Preferences</button>
+        <div id="preferences-status" style="margin-top: 10px;"></div>
       </div>
 
       <div class="settings-section">

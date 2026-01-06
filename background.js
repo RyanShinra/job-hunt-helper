@@ -147,6 +147,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
       return true;
 
+    case 'savePreferences':
+      Storage.savePreferences(request.preferences)
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
+      return true;
+
+    case 'getPreferences':
+      Storage.getPreferences()
+        .then(preferences => sendResponse({ success: true, preferences }))
+        .catch(error => sendResponse({ success: false, error: sanitizeErrorMessage(error) }));
+      return true;
+
     default:
       sendResponse({ success: false, error: 'Unknown action' });
   }
@@ -190,9 +202,15 @@ async function handleAnalyzeJob(jobData) {
       console.log('Background: Using resume for personalized analysis');
     }
 
-    // Call Claude API for analysis (with optional resume)
+    // Get preferences from storage (optional)
+    const preferences = await Storage.getPreferences();
+    if (preferences) {
+      console.log('Background: Using preferences for context');
+    }
+
+    // Call Claude API for analysis (with optional resume and preferences)
     console.log('Background: Calling Claude API...');
-    const analysisResult = await ClaudeClient.analyzeJob(apiKey, jobData, resumeText);
+    const analysisResult = await ClaudeClient.analyzeJob(apiKey, jobData, resumeText, preferences);
 
     // Save the analyzed job to storage
     const jobToSave = {
@@ -258,4 +276,98 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.jobs) {
     updateBadge();
   }
+});
+
+/**
+ * Check if URL is a supported job posting
+ * @param {string} url - URL to check
+ * @returns {boolean} Whether URL is a job posting
+ */
+function isJobPostingUrl(url) {
+  if (!url) return false;
+
+  const jobPatterns = [
+    /linkedin\.com\/jobs\//i,
+    /boards\.greenhouse\.io\//i,
+    /jobs\.lever\.co\//i
+  ];
+
+  return jobPatterns.some(pattern => pattern.test(url));
+}
+
+/**
+ * Track analyzed tabs to prevent duplicate analysis
+ */
+const analyzedTabs = new Set();
+
+/**
+ * Listen for tab updates to trigger auto-analysis
+ */
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Only proceed when page has fully loaded
+  if (changeInfo.status !== 'complete') return;
+
+  // Check if URL is a job posting
+  if (!tab.url || !isJobPostingUrl(tab.url)) return;
+
+  // Check if already analyzed this tab
+  if (analyzedTabs.has(tabId)) {
+    console.log('Background: Tab already analyzed, skipping:', tabId);
+    return;
+  }
+
+  try {
+    // Get settings to check if auto-analyze is enabled
+    const settings = await Storage.getSettings();
+
+    if (!settings.autoAnalyze) {
+      console.log('Background: Auto-analyze disabled');
+      return;
+    }
+
+    // Check if API key is configured
+    const apiKey = await Storage.getApiKey();
+    if (!apiKey) {
+      console.log('Background: No API key configured, skipping auto-analysis');
+      return;
+    }
+
+    // Check if this job has already been analyzed (by URL)
+    const jobs = await Storage.getAllJobs();
+    const existingJob = jobs.find(job => job.url === tab.url && job.analysis);
+
+    if (existingJob) {
+      console.log('Background: Job already analyzed:', tab.url);
+      analyzedTabs.add(tabId);
+      return;
+    }
+
+    console.log('Background: Triggering auto-analysis for tab:', tabId, tab.url);
+
+    // Mark as analyzed to prevent duplicate triggers
+    analyzedTabs.add(tabId);
+
+    // Send message to content script to trigger analysis
+    // Give the content script a moment to initialize
+    setTimeout(async () => {
+      try {
+        await chrome.tabs.sendMessage(tabId, { action: 'autoAnalyze' });
+        console.log('Background: Auto-analyze message sent to tab:', tabId);
+      } catch (error) {
+        console.error('Background: Error sending auto-analyze message:', error);
+        // Remove from analyzed set so it can be retried
+        analyzedTabs.delete(tabId);
+      }
+    }, 1000); // 1 second delay to ensure content script is ready
+
+  } catch (error) {
+    console.error('Background: Error in auto-analyze listener:', error);
+  }
+});
+
+/**
+ * Clean up analyzed tabs when they're closed
+ */
+chrome.tabs.onRemoved.addListener((tabId) => {
+  analyzedTabs.delete(tabId);
 });

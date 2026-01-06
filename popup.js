@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadJobs();
   await loadApiKey();
   await loadResumeStatus();
+  await loadSettings();
+  await loadPreferences();
   setupEventListeners();
 });
 
@@ -69,6 +71,13 @@ function setupEventListeners() {
 
   // Delete resume
   document.getElementById('delete-resume').addEventListener('click', deleteResume);
+
+  // Auto-analyze toggle
+  document.getElementById('auto-analyze-toggle').addEventListener('change', handleAutoAnalyzeToggle);
+
+  // Preferences
+  document.getElementById('preferences').addEventListener('input', updatePreferencesCharCount);
+  document.getElementById('save-preferences').addEventListener('click', savePreferences);
 
   // Event delegation for job card buttons (prevents memory leaks)
   document.getElementById('jobs-list').addEventListener('click', (e) => {
@@ -589,5 +598,97 @@ async function deleteResume() {
   } catch (error) {
     console.error('Error deleting resume:', error);
     alert('Error deleting resume');
+  }
+}
+
+/**
+ * Load settings
+ */
+async function loadSettings() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getSettings' });
+
+    if (response.success && response.settings) {
+      const autoAnalyze = response.settings.autoAnalyze || false;
+      document.getElementById('auto-analyze-toggle').checked = autoAnalyze;
+    }
+  } catch (error) {
+    console.error('Error loading settings:', error);
+  }
+}
+
+/**
+ * Handle auto-analyze toggle
+ */
+async function handleAutoAnalyzeToggle(event) {
+  const enabled = event.target.checked;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'saveSettings',
+      settings: { autoAnalyze: enabled }
+    });
+
+    if (response.success) {
+      console.log('Auto-analyze setting saved:', enabled);
+    } else {
+      console.error('Failed to save auto-analyze setting');
+      // Revert toggle on failure
+      event.target.checked = !enabled;
+    }
+  } catch (error) {
+    console.error('Error saving auto-analyze setting:', error);
+    // Revert toggle on error
+    event.target.checked = !enabled;
+  }
+}
+
+/**
+ * Load preferences
+ */
+async function loadPreferences() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getPreferences' });
+
+    if (response.success && response.preferences) {
+      const textarea = document.getElementById('preferences');
+      textarea.value = response.preferences;
+      updatePreferencesCharCount();
+    }
+  } catch (error) {
+    console.error('Error loading preferences:', error);
+  }
+}
+
+/**
+ * Update preferences character count
+ */
+function updatePreferencesCharCount() {
+  const textarea = document.getElementById('preferences');
+  const charCount = document.getElementById('preferences-char-count');
+  charCount.textContent = textarea.value.length;
+}
+
+/**
+ * Save preferences
+ */
+async function savePreferences() {
+  const preferences = document.getElementById('preferences').value.trim();
+  const statusDiv = document.getElementById('preferences-status');
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'savePreferences',
+      preferences: preferences
+    });
+
+    if (response.success) {
+      showStatus(statusDiv, 'Preferences saved successfully!', 'success');
+    } else {
+      showStatus(statusDiv, 'Failed to save preferences', 'error');
+    }
+  } catch (error) {
+    console.error('Error saving preferences:', error);
+    showStatus(statusDiv, 'Error saving preferences', 'error');
   }
 }
