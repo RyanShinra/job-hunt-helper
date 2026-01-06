@@ -373,13 +373,15 @@ async function testApiKey() {
     });
 
     if (response.success && response.isValid) {
-      showStatus(statusDiv, 'API key is valid!', 'success');
+      showStatus(statusDiv, response.details || 'API key is valid!', 'success');
     } else {
-      showStatus(statusDiv, 'API key is invalid or expired', 'error');
+      // Show detailed error message from the API
+      const errorMsg = response.details || response.error || 'API key is invalid or expired';
+      showStatus(statusDiv, errorMsg, 'error');
     }
   } catch (error) {
     console.error('Error testing API key:', error);
-    showStatus(statusDiv, 'Error testing API key', 'error');
+    showStatus(statusDiv, error.message || 'Error testing API key', 'error');
   }
 }
 
