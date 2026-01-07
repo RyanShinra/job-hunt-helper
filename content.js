@@ -101,8 +101,8 @@
     updateButtonState('processing');
     
     try {
-      // Extract job data using the JobExtractor
-      const jobData = window.JobExtractor?.extract();
+      // Extract job data using the JobExtractor (now async to wait for page render)
+      const jobData = await window.JobExtractor?.extract();
 
       console.log('Job Hunt Assistant: Extracted job data:', {
         hasData: !!jobData,
