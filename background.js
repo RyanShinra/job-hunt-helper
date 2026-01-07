@@ -304,45 +304,80 @@ const analyzedTabs = new Set();
  * Listen for tab updates to trigger auto-analysis
  */
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  console.log('🔍 Background: Tab updated event fired', {
+    tabId,
+    status: changeInfo.status,
+    url: tab.url
+  });
+
   // Only proceed when page has fully loaded
-  if (changeInfo.status !== 'complete') return;
+  if (changeInfo.status !== 'complete') {
+    console.log('⏸️  Background: Page not fully loaded yet, skipping');
+    return;
+  }
+
+  console.log('✅ Background: Page fully loaded, checking if job posting...');
 
   // Check if URL is a job posting
-  if (!tab.url || !isJobPostingUrl(tab.url)) return;
+  if (!tab.url) {
+    console.log('❌ Background: No URL found on tab');
+    return;
+  }
+
+  const isJobPosting = isJobPostingUrl(tab.url);
+  console.log('🔎 Background: Job posting check:', {
+    url: tab.url,
+    isJobPosting
+  });
+
+  if (!isJobPosting) {
+    console.log('❌ Background: URL is not a job posting, skipping');
+    return;
+  }
 
   // Check if already analyzed this tab
   if (analyzedTabs.has(tabId)) {
-    console.log('Background: Tab already analyzed, skipping:', tabId);
+    console.log('⏭️  Background: Tab already analyzed, skipping:', tabId);
     return;
   }
+
+  console.log('🚀 Background: This is a new job posting tab, checking settings...');
 
   try {
     // Get settings to check if auto-analyze is enabled
     const settings = await Storage.getSettings();
+    console.log('⚙️  Background: Settings retrieved:', settings);
 
     if (!settings.autoAnalyze) {
-      console.log('Background: Auto-analyze disabled');
+      console.log('🔴 Background: Auto-analyze is DISABLED in settings');
       return;
     }
+
+    console.log('✅ Background: Auto-analyze is ENABLED');
 
     // Check if API key is configured
     const apiKey = await Storage.getApiKey();
     if (!apiKey) {
-      console.log('Background: No API key configured, skipping auto-analysis');
+      console.log('❌ Background: No API key configured, skipping auto-analysis');
       return;
     }
+
+    console.log('✅ Background: API key is configured');
 
     // Check if this job has already been analyzed (by URL)
     const jobs = await Storage.getAllJobs();
     const existingJob = jobs.find(job => job.url === tab.url && job.analysis);
 
     if (existingJob) {
-      console.log('Background: Job already analyzed:', tab.url);
+      console.log('⏭️  Background: Job already analyzed previously:', tab.url);
       analyzedTabs.add(tabId);
       return;
     }
 
-    console.log('Background: Triggering auto-analysis for tab:', tabId, tab.url);
+    console.log('🎯 Background: All checks passed! Triggering auto-analysis for:', {
+      tabId,
+      url: tab.url
+    });
 
     // Mark as analyzed to prevent duplicate triggers
     analyzedTabs.add(tabId);
@@ -351,17 +386,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     // Give the content script a moment to initialize
     setTimeout(async () => {
       try {
-        await chrome.tabs.sendMessage(tabId, { action: 'autoAnalyze' });
-        console.log('Background: Auto-analyze message sent to tab:', tabId);
+        console.log('📤 Background: Sending autoAnalyze message to content script...');
+        const response = await chrome.tabs.sendMessage(tabId, { action: 'autoAnalyze' });
+        console.log('✅ Background: Auto-analyze message sent successfully:', response);
       } catch (error) {
-        console.error('Background: Error sending auto-analyze message:', error);
+        console.error('❌ Background: Error sending auto-analyze message:', error);
         // Remove from analyzed set so it can be retried
         analyzedTabs.delete(tabId);
       }
     }, 1000); // 1 second delay to ensure content script is ready
 
   } catch (error) {
-    console.error('Background: Error in auto-analyze listener:', error);
+    console.error('❌ Background: Error in auto-analyze listener:', error);
   }
 });
 

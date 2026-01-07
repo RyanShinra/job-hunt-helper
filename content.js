@@ -220,14 +220,21 @@
    * Initialize the content script
    */
   function init() {
+    console.log('🚀 Content Script: Initializing...', {
+      readyState: document.readyState,
+      isInitialized,
+      url: window.location.href
+    });
+
     // Prevent multiple initializations (race condition protection)
     if (isInitialized) {
-      console.log('Job Hunt Assistant: Already initialized, skipping');
+      console.log('⏭️  Content Script: Already initialized, skipping');
       return;
     }
 
     // Wait for page to be fully loaded
     if (document.readyState === 'loading') {
+      console.log('⏸️  Content Script: Document still loading, waiting for DOMContentLoaded...');
       document.addEventListener('DOMContentLoaded', init);
       return;
     }
@@ -238,12 +245,13 @@
     const platform = window.JobExtractor?.detectPlatform();
 
     if (platform) {
-      console.log(`Job Hunt Assistant: Detected ${platform} job page`);
+      console.log(`✅ Content Script: Detected ${platform} job page`);
+      console.log('🔘 Content Script: Creating analyze button...');
 
       // Create the analyze button after a short delay to ensure DOM is ready
       setTimeout(createAnalyzeButton, BUTTON_CREATE_DELAY);
     } else {
-      console.log('Job Hunt Assistant: Not on a supported job platform');
+      console.log('❌ Content Script: Not on a supported job platform');
     }
   }
   
@@ -252,19 +260,23 @@
   
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('📨 Content Script: Received message:', request);
+
     if (request.action === 'ping') {
+      console.log('🏓 Content Script: Responding to ping');
       sendResponse({ status: 'ready' });
       return true;
     }
 
     if (request.action === 'autoAnalyze') {
-      console.log('Job Hunt Assistant: Auto-analyze triggered');
+      console.log('🤖 Content Script: Auto-analyze triggered!');
 
       // Show subtle notification that analysis is starting
       showNotification('🤖 Auto-analyzing this job...', 'info');
 
       // Trigger analysis after a short delay
       setTimeout(() => {
+        console.log('▶️  Content Script: Calling handleAnalyzeClick()...');
         handleAnalyzeClick();
       }, 500);
 
@@ -272,6 +284,7 @@
       return true;
     }
 
+    console.log('❓ Content Script: Unknown action:', request.action);
     return true;
   });
   
