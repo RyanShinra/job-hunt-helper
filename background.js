@@ -296,9 +296,9 @@ function isJobPostingUrl(url) {
 }
 
 /**
- * Track analyzed tabs to prevent duplicate analysis
+ * Track analyzed URLs (not tab IDs, since LinkedIn reuses tabs with different URLs)
  */
-const analyzedTabs = new Set();
+const analyzedUrls = new Set();
 
 /**
  * Listen for tab updates to trigger auto-analysis
@@ -335,13 +335,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     return;
   }
 
-  // Check if already analyzed this tab
-  if (analyzedTabs.has(tabId)) {
-    console.log('⏭️  Background: Tab already analyzed, skipping:', tabId);
+  // Check if already analyzed this URL (not tab ID!)
+  if (analyzedUrls.has(tab.url)) {
+    console.log('⏭️  Background: URL already analyzed, skipping:', tab.url);
     return;
   }
 
-  console.log('🚀 Background: This is a new job posting tab, checking settings...');
+  console.log('🚀 Background: This is a new job posting, checking settings...');
 
   try {
     // Get settings to check if auto-analyze is enabled
@@ -370,7 +370,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     if (existingJob) {
       console.log('⏭️  Background: Job already analyzed previously:', tab.url);
-      analyzedTabs.add(tabId);
+      analyzedUrls.add(tab.url);
       return;
     }
 
@@ -379,11 +379,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       url: tab.url
     });
 
-    // Mark as analyzed to prevent duplicate triggers
-    analyzedTabs.add(tabId);
+    // Mark URL as analyzed to prevent duplicate triggers
+    analyzedUrls.add(tab.url);
 
     // Send message to content script to trigger analysis
-    // Give the content script a moment to initialize
+    // LinkedIn needs more time - give it 2 seconds
     setTimeout(async () => {
       try {
         console.log('📤 Background: Sending autoAnalyze message to content script...');
@@ -392,9 +392,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       } catch (error) {
         console.error('❌ Background: Error sending auto-analyze message:', error);
         // Remove from analyzed set so it can be retried
-        analyzedTabs.delete(tabId);
+        analyzedUrls.delete(tab.url);
       }
-    }, 1000); // 1 second delay to ensure content script is ready
+    }, 2000); // 2 second delay for LinkedIn to settle
 
   } catch (error) {
     console.error('❌ Background: Error in auto-analyze listener:', error);
@@ -402,8 +402,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 /**
- * Clean up analyzed tabs when they're closed
+ * Clean up analyzed URLs when tabs are closed (optional cleanup)
  */
 chrome.tabs.onRemoved.addListener((tabId) => {
-  analyzedTabs.delete(tabId);
+  // We track URLs not tab IDs, so this is just for potential future use
 });
