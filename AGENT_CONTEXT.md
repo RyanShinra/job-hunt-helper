@@ -390,39 +390,73 @@ await window.JobExtractor.extract()   // Should return job data object
 
 ### ✅ Enhanced LinkedIn Selector Robustness
 
+**CRITICAL Discovery - Two Different LinkedIn Page Layouts:**
+
+LinkedIn has **two completely different page structures** that require different extraction strategies:
+
+1. **Collections View** (the problem case)
+   - URL pattern: `linkedin.com/jobs/collections/?currentJobId=XXX`
+   - Layout: Sidebar with job list on left + job detail on right
+   - DOM Structure: Uses h2/h3/p tags (NO h1 tags)
+   - Classes: Obfuscated/hashed classes (e.g., `_9145fa36`, `f451ed89`)
+   - Shadow DOM: Present on these pages
+   - This is the layout users typically browse when reviewing multiple jobs
+
+2. **Direct View** (works better)
+   - URL pattern: `linkedin.com/jobs/view/XXXXX/`
+   - Layout: Single job page (no sidebar)
+   - DOM Structure: More traditional h1 tags
+   - Classes: More semantic class names
+   - This is when you open a job in a new tab or share a direct link
+
 **Root Cause Discovered:**
-- LinkedIn is using **Shadow DOM** on some pages (blocks our selectors)
-- LinkedIn **no longer uses h1 tags** consistently (observed h1: 0, h2: 7)
-- Job titles now appear in various elements (h2, h3, p tags)
+- LinkedIn is using **Shadow DOM** on collections view pages (blocks our selectors)
+- Collections view **uses h2/h3/p tags instead of h1** (observed h1: 0, h2: 7, h3: 4)
+- Direct view still uses h1 tags and works with traditional selectors
+- Job titles appear in various elements depending on page type
 - Standard CSS selectors cannot penetrate Shadow DOM
 
 **Changes Made:**
-1. **Expanded Page Readiness Detection** (lib/extractor.js:76-102)
+1. **LinkedIn Page Type Detection** (lib/extractor.js:52-71)
+   - New `detectLinkedInPageType()` method
+   - Identifies "collections" vs "direct" vs "unknown" page types
+   - Logs page type on extraction start for debugging
+
+2. **Page Readiness Detection Updated for Collections View** (lib/extractor.js:97-116)
+   - Now checks for h2/h3 presence (not just h1)
+   - Collections view has 0 h1s but 7+ h2s - this was blocking detection
    - Added `.scaffold-layout__detail` and `.scaffold-layout--reflow` checks
    - Added `[data-job-id]` attribute check
    - Added `.jobs-details__main-content` container check
    - More comprehensive description selector checks
-   - Now detects 5 different page layout indicators instead of 3
+   - Now detects 7 different page layout indicators instead of 3
+   - **Should detect collections view as "ready" within 1-2 attempts now**
 
-2. **Expanded Job Title Selectors** (12 → 23 selectors)
-   - Added scaffold layout variations
-   - Added inline class variations (h1.t-24.t-bold.inline, h1.t-20)
-   - Added data attribute fallbacks
-   - Added main/job-view-layout container targeting
+3. **Expanded Job Title Selectors** (23 → 47 selectors)
+   - **NEW:** Added h2/h3/p based selectors at TOP of priority list
+   - h2[class*="job"], h3[class*="job"], p[class*="job"]
+   - [class*="job-title"] h2/h3/p variants
+   - Added h2/h3 versions of all existing selectors
+   - Added scaffold layout variations for h2
+   - Added inline class variations (h1.t-24, h2.t-24, h2.t-20)
+   - Added data attribute fallbacks for h2
+   - Added main/job-view-layout container targeting for h2
 
-3. **Expanded Description Selectors** (10 → 21 selectors)
+4. **Expanded Description Selectors** (10 → 21 selectors)
    - Added show-more-less variations
    - Added scaffold layout targeting
    - Added data attribute selectors
    - Added generic fallbacks within job containers
 
-4. **Comprehensive Debugging Added** (lib/extractor.js:124-167)
+5. **Comprehensive Debugging Added** (lib/extractor.js:142-178)
    - Shadow DOM detection - identifies when LinkedIn uses Shadow DOM
    - Element counts - shows what tags exist on page (div, span, h1, h2, h3, etc.)
    - Job-related element search - finds elements with "job" in classes/IDs
+   - **NEW:** Shows h2/h3 elements when h1 is missing (first 5 of each)
+   - Logs page type (collections vs direct)
    - Helps diagnose why selectors fail on specific pages
 
-5. **Intelligent Job Title Fallback with Scoring** (lib/extractor.js:271-314)
+6. **Intelligent Job Title Fallback with Scoring** (lib/extractor.js:271-314)
    - **OLD:** Only scanned h1 elements (which LinkedIn no longer uses)
    - **NEW:** Scans h1, h2, h3, AND p tags
    - Scoring system based on:
@@ -434,16 +468,24 @@ await window.JobExtractor.extract()   // Should return job data object
    - Uses highest-scored element as job title
    - **Fixes "Untitled Job" issue**
 
-6. **Intelligent Description Fallback** (lib/extractor.js:316-341)
+7. **Intelligent Description Fallback** (lib/extractor.js:316-341)
    - Scans ALL div/article/section elements for text-heavy content
    - Smart filtering: Excludes navigation text and page layout elements
    - Sorts by content length (300-20,000 chars ideal)
    - **Currently working well** - successfully extracting 7000+ char descriptions
 
 **Test Results:**
-- ✅ Description extraction now works via fallback (7518 chars extracted)
-- 🔄 Job title extraction improved with h2/h3/p scanning (testing in progress)
-- ⚠️ Shadow DOM pages may still have limitations (requires different approach)
+- ✅ Description extraction works via fallback (7518 chars extracted)
+- ✅ Page readiness detection should work on collections view (h2/h3 detection)
+- ✅ Job title selectors now prioritize h2/h3/p tags (collections view)
+- 🔄 Job title fallback improved with h2/h3/p scanning + scoring (testing)
+- ⚠️ Shadow DOM may still limit some extractions
+
+**Expected Improvements:**
+- Collections view should be detected as "ready" within 1-2 attempts (not 20)
+- Job titles should be found via h2/h3-based selectors before fallback
+- If selectors fail, intelligent fallback should find job title in h2/h3/p tags
+- Both page types (collections and direct) should now work
 
 ## Next Session TODO
 
