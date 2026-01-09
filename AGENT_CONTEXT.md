@@ -386,9 +386,16 @@ await window.JobExtractor.extract()   // Should return job data object
 
 ---
 
-## Recent Improvements (January 8, 2026 - Continued Session)
+## Recent Improvements (January 9, 2026 - Continued Session)
 
 ### ✅ Enhanced LinkedIn Selector Robustness
+
+**Root Cause Discovered:**
+- LinkedIn is using **Shadow DOM** on some pages (blocks our selectors)
+- LinkedIn **no longer uses h1 tags** consistently (observed h1: 0, h2: 7)
+- Job titles now appear in various elements (h2, h3, p tags)
+- Standard CSS selectors cannot penetrate Shadow DOM
+
 **Changes Made:**
 1. **Expanded Page Readiness Detection** (lib/extractor.js:76-102)
    - Added `.scaffold-layout__detail` and `.scaffold-layout--reflow` checks
@@ -409,16 +416,34 @@ await window.JobExtractor.extract()   // Should return job data object
    - Added data attribute selectors
    - Added generic fallbacks within job containers
 
-4. **Intelligent Fallback Logic** (lib/extractor.js:228-282)
-   - Job title fallback: Scans ALL h1 elements, filters by length/content
-   - Description fallback: Now USES best text-heavy candidate instead of just logging
-   - Smart filtering: Excludes navigation text ("sign in", "join now", "messaging")
-   - Sorts candidates by text length to find main content
+4. **Comprehensive Debugging Added** (lib/extractor.js:124-167)
+   - Shadow DOM detection - identifies when LinkedIn uses Shadow DOM
+   - Element counts - shows what tags exist on page (div, span, h1, h2, h3, etc.)
+   - Job-related element search - finds elements with "job" in classes/IDs
+   - Helps diagnose why selectors fail on specific pages
 
-**Expected Impact:**
-- Should detect and extract from more LinkedIn page layouts
-- More resilient to LinkedIn UI changes
-- Better chance of extracting job data even when primary selectors fail
+5. **Intelligent Job Title Fallback with Scoring** (lib/extractor.js:271-314)
+   - **OLD:** Only scanned h1 elements (which LinkedIn no longer uses)
+   - **NEW:** Scans h1, h2, h3, AND p tags
+   - Scoring system based on:
+     - Length (20-150 chars ideal for job titles)
+     - Job keywords (engineer, developer, manager, analyst, etc.)
+     - Element type (h1 > h2 > h3 > p)
+     - Filters out navigation text
+   - Shows top 5 candidates with scores for debugging
+   - Uses highest-scored element as job title
+   - **Fixes "Untitled Job" issue**
+
+6. **Intelligent Description Fallback** (lib/extractor.js:316-341)
+   - Scans ALL div/article/section elements for text-heavy content
+   - Smart filtering: Excludes navigation text and page layout elements
+   - Sorts by content length (300-20,000 chars ideal)
+   - **Currently working well** - successfully extracting 7000+ char descriptions
+
+**Test Results:**
+- ✅ Description extraction now works via fallback (7518 chars extracted)
+- 🔄 Job title extraction improved with h2/h3/p scanning (testing in progress)
+- ⚠️ Shadow DOM pages may still have limitations (requires different approach)
 
 ## Next Session TODO
 
